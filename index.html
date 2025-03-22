@@ -108,206 +108,213 @@
     </div>
 
     <script>
-            document.addEventListener("DOMContentLoaded", () => {
-            document.getElementById("startButton").addEventListener("click", playGame);
-            document.getElementById("rawDataButton").addEventListener("click", showRawData);
-            document.getElementById("prettifyDataButton").addEventListener("click", prettifyData);
-            document.getElementById("highlightRawButton").addEventListener("click", () => highlightData(false));
-            document.getElementById("highlightPrettyButton").addEventListener("click", () => highlightData(true));
-            document.getElementById("paramsInput").addEventListener("input", updateRawDataDisplay);
-        });
+        // DOM elements cached for better performance
+        const elements = {
+            paramsInput: document.getElementById("paramsInput"),
+            output: document.getElementById("output"),
+            loopVar: document.getElementById("loopVar"),
+            listVar: document.getElementById("listVar"), 
+            varList: document.getElementById("varList"),
+            extractedValues: document.getElementById("extractedValues")
+        };
 
-        // Update the raw data display whenever the user types in the textarea
-        function updateRawDataDisplay() {
-            const paramsInput = document.getElementById("paramsInput").value.trim();
-            document.getElementById("output").innerText = paramsInput;
+        // Initialize event listeners when DOM is loaded
+        document.addEventListener("DOMContentLoaded", initializeApp);
+
+        function initializeApp() {
+            document.getElementById("startButton").addEventListener("click", extractValues);
+            document.getElementById("rawDataButton").addEventListener("click", () => displayData(false, false));
+            document.getElementById("prettifyDataButton").addEventListener("click", () => displayData(true, false));
+            document.getElementById("highlightRawButton").addEventListener("click", () => displayData(false, true));
+            document.getElementById("highlightPrettyButton").addEventListener("click", () => displayData(true, true));
         }
 
-        // Function to play the game and extract values
-        function playGame() {
-            let extractedValues = ""; // To store extracted values and display below "Start Game"
-
+        // Central data processing function
+        function processData() {
+            const paramsInput = elements.paramsInput.value.trim();
+            if (!paramsInput) {
+                return null;
+            }
+            
             try {
-                const paramsInput = document.getElementById("paramsInput").value.trim();
+                return JSON.parse(paramsInput);
+            } catch (error) {
+                throw new Error("Invalid JSON data");
+            }
+        }
+
+        // Display data with options for prettify and highlight
+        function displayData(prettify = false, highlight = false) {
+            try {
+                const paramsInput = elements.paramsInput.value.trim();
                 if (!paramsInput) {
+                    elements.output.innerText = "";
+                    return;
+                }
+
+                const parsedData = JSON.parse(paramsInput);
+                let displayText = prettify ? JSON.stringify(parsedData, null, 2) : paramsInput;
+
+                if (highlight) {
+                    displayText = highlightVariables(displayText);
+                    elements.output.innerHTML = displayText;
+                } else {
+                    elements.output.innerText = displayText;
+                }
+            } catch (error) {
+                elements.output.innerText = "Error: " + error.message;
+            }
+        }
+
+        // Highlight variables in the JSON
+        function highlightVariables(text) {
+            const listVar = elements.listVar.value.trim();
+            const varList = elements.varList.value.split(",").map(v => v.trim());
+
+            // Create a temporary div to safely work with HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerText = text;
+            let htmlString = tempDiv.innerHTML;
+
+            // Highlight the list if provided
+            if (listVar) {
+                const listPath = listVar.split(".");
+                const lastPart = listPath[listPath.length - 1];
+
+                // Create a pattern to find the list name in the JSON
+                const listPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');
+                htmlString = htmlString.replace(listPattern, match =>
+                    `<span class="highlight">${match}</span>`);
+            }
+
+            // Highlight each property from the variables
+            for (let variable of varList) {
+                const props = variable.split(".");
+
+                // Skip the first part (params/data) and highlight all other parts
+                for (let i = 1; i < props.length; i++) {
+                    const propName = props[i];
+                    const propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
+                    htmlString = htmlString.replace(propPattern, match =>
+                        `<span class="highlight">${match}</span>`);
+                }
+            }
+
+            return htmlString;
+        }
+
+        // Extract values from the JSON based on user input
+        function extractValues() {
+            try {
+                // Get user input
+                const paramsData = processData();
+                if (!paramsData) {
                     throw new Error("Please enter JSON data in the params input field.");
                 }
 
-                let paramsData = JSON.parse(paramsInput);  // Parse the entered JSON
-
-                const loopVar = document.getElementById("loopVar").value.trim();
-                const listVar = document.getElementById("listVar").value.trim();
-                const varListInput = document.getElementById("varList").value.trim();
+                const loopVar = elements.loopVar.value.trim();
+                const listVar = elements.listVar.value.trim();
+                const varListInput = elements.varList.value.trim();
 
                 if (!varListInput) {
                     throw new Error("Please enter at least one variable to extract.");
                 }
 
                 const varList = varListInput.split(",").map(v => v.trim());
+                let extractedValues = "";
 
-                // Check if list and loop variable are correct if the list is provided
-                if (listVar && loopVar !== "item") {
-                    throw new Error("If a list is provided, the loop variable must be 'item'.");
-                }
-
-                // Extract value if there's no list to traverse
                 if (!listVar) {
-                    // Handle extracting variables directly
-                    for (let variable of varList) {
-                        let keys = variable.split(".");
-                        let value = paramsData;
-
-                        // Replace 'data' with 'params' if it's present
-                        if (keys[0] === "data" || keys[0] === "params") {
-                            keys[0] = "data"; // Ensure both 'params' and 'data' are treated the same
-                        }
-
-                        // Traverse through the keys to get the value
-                        for (let key of keys) {
-                            if (value === undefined || value === null || value[key] === undefined) {
-                                throw new Error(`Invalid variable: ${variable}`);
-                            }
-                            value = value[key];
-                        }
-
-                        // If the value is an object, output the whole object
-                        if (typeof value === "object" && value !== null) {
-                            extractedValues += `${variable}: ${JSON.stringify(value, null, 2)}\n`;
-                        } else {
-                            extractedValues += `${variable}: ${value}\n`;
-                        }
-                    }
+                    // Handle direct variable extraction
+                    extractedValues = extractDirectVariables(paramsData, varList);
                 } else {
-                    // If a list is provided, traverse through items
-                    // Get the actual list by navigating the path
-                    let listPath = listVar.split(".");
-                    let currentObj = paramsData;
-
-                    // Handle special case for "params" which might be stored as "data"
-                    if (listPath[0] === "params") {
-                        listPath[0] = "data";
-                    }
-
-                    // Navigate to the list
-                    for (let i = 0; i < listPath.length; i++) {
-                        if (currentObj === undefined || currentObj === null || currentObj[listPath[i]] === undefined) {
-                            throw new Error(`List not found: ${listVar}`);
-                        }
-                        currentObj = currentObj[listPath[i]];
-                    }
-
-                    // Now currentObj should be the list
-                    if (!Array.isArray(currentObj)) {
-                        throw new Error(`${listVar} is not an array`);
-                    }
-
-                    // Process each item in the list
-                    for (let item of currentObj) {
-                        let itemOutput = "";
-                        for (let variable of varList) {
-                            let property = variable.split(".")[1]; // Extract the property part (e.g., 'name' from 'item.name')
-                            if (!(property in item)) {
-                                throw new Error(`Invalid variable: ${variable}`);
-                            }
-                            itemOutput += `${variable}: ${item[property]}\n`;
-                        }
-                        extractedValues += itemOutput + "\n";
-                    }
+                    // Handle list traversal
+                    extractedValues = extractListVariables(paramsData, listVar, varList);
                 }
 
-                // Display the extracted values below the Start Game button
-                document.getElementById("extractedValues").innerText = extractedValues;
+                // Display the extracted values
+                elements.extractedValues.innerText = extractedValues;
 
-                // Highlight the raw data (but don't prettify it)
-                highlightData(false);
+                // Highlight the raw data
+                displayData(false, true);
             } catch (error) {
-                document.getElementById("extractedValues").innerText = "Error: " + error.message + " Try again.";
+                elements.extractedValues.innerText = "Error: " + error.message + " Try again.";
             }
         }
 
-        // Function to highlight data with option to prettify
-        function highlightData(prettify) {
-            const paramsInput = document.getElementById("paramsInput").value.trim();
+        // Extract variables directly from the data object
+        function extractDirectVariables(paramsData, varList) {
+            let result = "";
+            
+            for (let variable of varList) {
+                let keys = variable.split(".");
+                let value = paramsData;
 
-            try {
-                if (!paramsInput) {
-                    document.getElementById("output").innerText = "";
-                    return;
+                // Replace 'data' with 'params' if it's present
+                if (keys[0] === "data" || keys[0] === "params") {
+                    keys[0] = "data"; // Ensure both 'params' and 'data' are treated the same
                 }
 
-                const parsedData = JSON.parse(paramsInput); // Parse to validate JSON
+                // Traverse through the keys to get the value
+                for (let key of keys) {
+                    if (value === undefined || value === null || value[key] === undefined) {
+                        throw new Error(`Invalid variable: ${variable}`);
+                    }
+                    value = value[key];
+                }
 
-                // Determine the text to highlight (raw or prettified)
-                let textToHighlight;
-                if (prettify) {
-                    textToHighlight = JSON.stringify(parsedData, null, 2);
+                // Format the output based on value type
+                if (typeof value === "object" && value !== null) {
+                    result += `${variable}: ${JSON.stringify(value, null, 2)}\n`;
                 } else {
-                    textToHighlight = paramsInput;
+                    result += `${variable}: ${value}\n`;
                 }
+            }
+            
+            return result;
+        }
 
-                const listVar = document.getElementById("listVar").value.trim();
-                const varList = document.getElementById("varList").value.split(",").map(v => v.trim());
+        // Extract variables from a list in the data object
+        function extractListVariables(paramsData, listVar, varList) {
+            let result = "";
+            
+            // Navigate to the list
+            let listPath = listVar.split(".");
+            let currentObj = paramsData;
 
-                // Create a temporary div to safely work with HTML
-                const tempDiv = document.createElement('div');
-                tempDiv.innerText = textToHighlight;
-                let htmlString = tempDiv.innerHTML;
+            // Handle special case for "params" which might be stored as "data"
+            if (listPath[0] === "params") {
+                listPath[0] = "data";
+            }
 
-                // Highlight the list if provided
-                if (listVar) {
-                    const listPath = listVar.split(".");
-                    const lastPart = listPath[listPath.length - 1];
-
-                    // Create a pattern to find the list name in the JSON
-                    const listPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');
-                    htmlString = htmlString.replace(listPattern, match =>
-                        `<span class="highlight">${match}</span>`);
+            // Traverse to the list
+            for (let i = 0; i < listPath.length; i++) {
+                if (currentObj === undefined || currentObj === null || currentObj[listPath[i]] === undefined) {
+                    throw new Error(`List not found: ${listVar}`);
                 }
+                currentObj = currentObj[listPath[i]];
+            }
 
-                // Highlight each property from the variables
+            // Ensure we have an array
+            if (!Array.isArray(currentObj)) {
+                throw new Error(`${listVar} is not an array`);
+            }
+
+            // Process each item
+            for (let item of currentObj) {
+                let itemOutput = "";
                 for (let variable of varList) {
-                    const props = variable.split(".");
-
-                    // Skip the first part (params/data) and highlight all other parts
-                    for (let i = 1; i < props.length; i++) {
-                        const propName = props[i];
-                        const propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
-                        htmlString = htmlString.replace(propPattern, match =>
-                            `<span class="highlight">${match}</span>`);
+                    let property = variable.split(".")[1]; // Extract property (e.g., 'name' from 'item.name')
+                    if (!(property in item)) {
+                        throw new Error(`Invalid variable: ${variable}`);
                     }
+                    itemOutput += `${variable}: ${item[property]}\n`;
                 }
-
-                // Display the highlighted text
-                document.getElementById("output").innerHTML = htmlString;
-            } catch (error) {
-                console.error("Error highlighting:", error);
-                document.getElementById("output").innerText = paramsInput;
+                result += itemOutput + "\n";
             }
-        }
-
-        // Show raw JSON data without highlighting
-        function showRawData() {
-            const paramsInput = document.getElementById("paramsInput").value.trim();
-            document.getElementById("output").innerText = paramsInput;
-        }
-
-        // Prettify the JSON without highlighting
-        function prettifyData() {
-            const paramsInput = document.getElementById("paramsInput").value.trim();
-            try {
-                if (!paramsInput) {
-                    document.getElementById("output").innerText = "";
-                    return;
-                }
-                const paramsData = JSON.parse(paramsInput);
-                const prettyData = JSON.stringify(paramsData, null, 2);  // Prettify the JSON
-                document.getElementById("output").innerText = prettyData;
-            } catch (error) {
-                document.getElementById("output").innerText = "Error: Invalid JSON.";
-            }
+            
+            return result;
         }
     </script>
 
 </body>
-
 </html>
