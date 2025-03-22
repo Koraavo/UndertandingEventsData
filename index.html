@@ -113,7 +113,7 @@
             paramsInput: document.getElementById("paramsInput"),
             output: document.getElementById("output"),
             loopVar: document.getElementById("loopVar"),
-            listVar: document.getElementById("listVar"), 
+            listVar: document.getElementById("listVar"),
             varList: document.getElementById("varList"),
             extractedValues: document.getElementById("extractedValues")
         };
@@ -129,15 +129,19 @@
             document.getElementById("highlightPrettyButton").addEventListener("click", () => displayData(true, true));
         }
 
-        // Central data processing function
+        // Central data processing function - gets the raw input and parses it
         function processData() {
-            const paramsInput = elements.paramsInput.value.trim();
-            if (!paramsInput) {
-                return null;
+            const inputText = elements.paramsInput.value.trim();
+            
+            if (!inputText) {
+                return { raw: "", parsed: null };
             }
             
             try {
-                return JSON.parse(paramsInput);
+                return { 
+                    raw: inputText, 
+                    parsed: JSON.parse(inputText) 
+                };
             } catch (error) {
                 throw new Error("Invalid JSON data");
             }
@@ -146,14 +150,16 @@
         // Display data with options for prettify and highlight
         function displayData(prettify = false, highlight = false) {
             try {
-                const paramsInput = elements.paramsInput.value.trim();
-                if (!paramsInput) {
+                // Use the common processData function to get and parse input
+                const data = processData();
+                
+                if (!data.raw) {
                     elements.output.innerText = "";
                     return;
                 }
-
-                const parsedData = JSON.parse(paramsInput);
-                let displayText = prettify ? JSON.stringify(parsedData, null, 2) : paramsInput;
+                
+                // Use the parsed data for display
+                let displayText = prettify ? JSON.stringify(data.parsed, null, 2) : data.raw;
 
                 if (highlight) {
                     displayText = highlightVariables(displayText);
@@ -206,9 +212,10 @@
         // Extract values from the JSON based on user input
         function extractValues() {
             try {
-                // Get user input
-                const paramsData = processData();
-                if (!paramsData) {
+                // Get user input using the common processData function
+                const data = processData();
+                
+                if (!data.parsed) {
                     throw new Error("Please enter JSON data in the params input field.");
                 }
 
@@ -225,10 +232,10 @@
 
                 if (!listVar) {
                     // Handle direct variable extraction
-                    extractedValues = extractDirectVariables(paramsData, varList);
+                    extractedValues = extractDirectVariables(data.parsed, varList);
                 } else {
                     // Handle list traversal
-                    extractedValues = extractListVariables(paramsData, listVar, varList);
+                    extractedValues = extractListVariables(data.parsed, listVar, varList);
                 }
 
                 // Display the extracted values
@@ -244,7 +251,7 @@
         // Extract variables directly from the data object
         function extractDirectVariables(paramsData, varList) {
             let result = "";
-            
+
             for (let variable of varList) {
                 let keys = variable.split(".");
                 let value = paramsData;
@@ -269,14 +276,14 @@
                     result += `${variable}: ${value}\n`;
                 }
             }
-            
+
             return result;
         }
 
         // Extract variables from a list in the data object
         function extractListVariables(paramsData, listVar, varList) {
             let result = "";
-            
+
             // Navigate to the list
             let listPath = listVar.split(".");
             let currentObj = paramsData;
@@ -311,7 +318,7 @@
                 }
                 result += itemOutput + "\n";
             }
-            
+
             return result;
         }
     </script>
