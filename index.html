@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript Loop Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h2 {
+            color: #2c3e50;
+        }
+
+        label {
+            margin: 10px 0;
+            display: inline-block;
+            font-weight: bold;
+        }
+
+        input,
+        textarea {
+            width: 80%;
+            padding: 10px;
+            margin: 5px 0;
+            font-size: 16px;
+            display: block;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            font-size: 14px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .highlight {
+            background-color: orange;
+            padding: 5px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        .output-section {
+            margin-top: 20px;
+        }
+
+        .button-group {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>JavaScript Loop Game</h2>
+    <p>Use the correct variable names to extract data.</p>
+
+    <!-- Raw data input -->
+    <label>Enter the entire params object:</label>
+    <textarea id="paramsInput" placeholder="Enter the params JSON object" rows="10" cols="50"></textarea>
+
+    <!-- Display options buttons -->
+    <div class="button-group">
+        <button id="rawDataButton">Show Raw Data</button>
+        <button id="prettifyDataButton">Prettify Data</button>
+        <button id="highlightRawButton">Highlight Raw Data</button>
+        <button id="highlightPrettyButton">Highlight Prettified Data</button>
+    </div>
+
+    <!-- Display output -->
+    <pre id="output"></pre>
+
+    <!-- Game input fields -->
+    <label>Enter loop variable (e.g., item):</label>
+    <input type="text" id="loopVar" placeholder="item">
+    <label>Enter list to traverse (e.g., params.items):</label>
+    <input type="text" id="listVar" placeholder="params.items">
+    <label>Enter variables to extract (comma-separated, e.g., item.name, item.price, item.url, params.total):</label>
+    <input type="text" id="varList">
+    <button id="startButton">Start Extraction</button>
+
+    <!-- Extracted values section -->
+    <div class="output-section">
+        <h3>Extracted Values:</h3>
+        <pre id="extractedValues"></pre>
+    </div>
+
+    <script>
+            document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("startButton").addEventListener("click", playGame);
+            document.getElementById("rawDataButton").addEventListener("click", showRawData);
+            document.getElementById("prettifyDataButton").addEventListener("click", prettifyData);
+            document.getElementById("highlightRawButton").addEventListener("click", () => highlightData(false));
+            document.getElementById("highlightPrettyButton").addEventListener("click", () => highlightData(true));
+            document.getElementById("paramsInput").addEventListener("input", updateRawDataDisplay);
+        });
+
+        // Update the raw data display whenever the user types in the textarea
+        function updateRawDataDisplay() {
+            const paramsInput = document.getElementById("paramsInput").value.trim();
+            document.getElementById("output").innerText = paramsInput;
+        }
+
+        // Function to play the game and extract values
+        function playGame() {
+            let extractedValues = ""; // To store extracted values and display below "Start Game"
+
+            try {
+                const paramsInput = document.getElementById("paramsInput").value.trim();
+                if (!paramsInput) {
+                    throw new Error("Please enter JSON data in the params input field.");
+                }
+
+                let paramsData = JSON.parse(paramsInput);  // Parse the entered JSON
+
+                const loopVar = document.getElementById("loopVar").value.trim();
+                const listVar = document.getElementById("listVar").value.trim();
+                const varListInput = document.getElementById("varList").value.trim();
+
+                if (!varListInput) {
+                    throw new Error("Please enter at least one variable to extract.");
+                }
+
+                const varList = varListInput.split(",").map(v => v.trim());
+
+                // Check if list and loop variable are correct if the list is provided
+                if (listVar && loopVar !== "item") {
+                    throw new Error("If a list is provided, the loop variable must be 'item'.");
+                }
+
+                // Extract value if there's no list to traverse
+                if (!listVar) {
+                    // Handle extracting variables directly
+                    for (let variable of varList) {
+                        let keys = variable.split(".");
+                        let value = paramsData;
+
+                        // Replace 'data' with 'params' if it's present
+                        if (keys[0] === "data" || keys[0] === "params") {
+                            keys[0] = "data"; // Ensure both 'params' and 'data' are treated the same
+                        }
+
+                        // Traverse through the keys to get the value
+                        for (let key of keys) {
+                            if (value === undefined || value === null || value[key] === undefined) {
+                                throw new Error(`Invalid variable: ${variable}`);
+                            }
+                            value = value[key];
+                        }
+
+                        // If the value is an object, output the whole object
+                        if (typeof value === "object" && value !== null) {
+                            extractedValues += `${variable}: ${JSON.stringify(value, null, 2)}\n`;
+                        } else {
+                            extractedValues += `${variable}: ${value}\n`;
+                        }
+                    }
+                } else {
+                    // If a list is provided, traverse through items
+                    // Get the actual list by navigating the path
+                    let listPath = listVar.split(".");
+                    let currentObj = paramsData;
+
+                    // Handle special case for "params" which might be stored as "data"
+                    if (listPath[0] === "params") {
+                        listPath[0] = "data";
+                    }
+
+                    // Navigate to the list
+                    for (let i = 0; i < listPath.length; i++) {
+                        if (currentObj === undefined || currentObj === null || currentObj[listPath[i]] === undefined) {
+                            throw new Error(`List not found: ${listVar}`);
+                        }
+                        currentObj = currentObj[listPath[i]];
+                    }
+
+                    // Now currentObj should be the list
+                    if (!Array.isArray(currentObj)) {
+                        throw new Error(`${listVar} is not an array`);
+                    }
+
+                    // Process each item in the list
+                    for (let item of currentObj) {
+                        let itemOutput = "";
+                        for (let variable of varList) {
+                            let property = variable.split(".")[1]; // Extract the property part (e.g., 'name' from 'item.name')
+                            if (!(property in item)) {
+                                throw new Error(`Invalid variable: ${variable}`);
+                            }
+                            itemOutput += `${variable}: ${item[property]}\n`;
+                        }
+                        extractedValues += itemOutput + "\n";
+                    }
+                }
+
+                // Display the extracted values below the Start Game button
+                document.getElementById("extractedValues").innerText = extractedValues;
+
+                // Highlight the raw data (but don't prettify it)
+                highlightData(false);
+            } catch (error) {
+                document.getElementById("extractedValues").innerText = "Error: " + error.message + " Try again.";
+            }
+        }
+
+        // Function to highlight data with option to prettify
+        function highlightData(prettify) {
+            const paramsInput = document.getElementById("paramsInput").value.trim();
+
+            try {
+                if (!paramsInput) {
+                    document.getElementById("output").innerText = "";
+                    return;
+                }
+
+                const parsedData = JSON.parse(paramsInput); // Parse to validate JSON
+
+                // Determine the text to highlight (raw or prettified)
+                let textToHighlight;
+                if (prettify) {
+                    textToHighlight = JSON.stringify(parsedData, null, 2);
+                } else {
+                    textToHighlight = paramsInput;
+                }
+
+                const listVar = document.getElementById("listVar").value.trim();
+                const varList = document.getElementById("varList").value.split(",").map(v => v.trim());
+
+                // Create a temporary div to safely work with HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerText = textToHighlight;
+                let htmlString = tempDiv.innerHTML;
+
+                // Highlight the list if provided
+                if (listVar) {
+                    const listPath = listVar.split(".");
+                    const lastPart = listPath[listPath.length - 1];
+
+                    // Create a pattern to find the list name in the JSON
+                    const listPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');
+                    htmlString = htmlString.replace(listPattern, match =>
+                        `<span class="highlight">${match}</span>`);
+                }
+
+                // Highlight each property from the variables
+                for (let variable of varList) {
+                    const props = variable.split(".");
+
+                    // Skip the first part (params/data) and highlight all other parts
+                    for (let i = 1; i < props.length; i++) {
+                        const propName = props[i];
+                        const propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
+                        htmlString = htmlString.replace(propPattern, match =>
+                            `<span class="highlight">${match}</span>`);
+                    }
+                }
+
+                // Display the highlighted text
+                document.getElementById("output").innerHTML = htmlString;
+            } catch (error) {
+                console.error("Error highlighting:", error);
+                document.getElementById("output").innerText = paramsInput;
+            }
+        }
+
+        // Show raw JSON data without highlighting
+        function showRawData() {
+            const paramsInput = document.getElementById("paramsInput").value.trim();
+            document.getElementById("output").innerText = paramsInput;
+        }
+
+        // Prettify the JSON without highlighting
+        function prettifyData() {
+            const paramsInput = document.getElementById("paramsInput").value.trim();
+            try {
+                if (!paramsInput) {
+                    document.getElementById("output").innerText = "";
+                    return;
+                }
+                const paramsData = JSON.parse(paramsInput);
+                const prettyData = JSON.stringify(paramsData, null, 2);  // Prettify the JSON
+                document.getElementById("output").innerText = prettyData;
+            } catch (error) {
+                document.getElementById("output").innerText = "Error: Invalid JSON.";
+            }
+        }
+    </script>
+
+</body>
+
+</html>
