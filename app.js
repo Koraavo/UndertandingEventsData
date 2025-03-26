@@ -81,17 +81,6 @@ function highlightVariables(text) {
     tempDiv.innerText = text;
     let htmlString = tempDiv.innerHTML;
 
-    // If a list variable is specified, we'll be more precise about highlighting
-    if (listVar) {
-        const listPath = normalizePathFirstSegment(listVar.split("."));
-        const lastPart = listPath[listPath.length - 1];
-
-        // Regex to find the start of the list
-        const listStartPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');
-        htmlString = htmlString.replace(listStartPattern, match =>
-            `<span class="highlight">${match}</span>`);
-    }
-
     // Process each variable for highlighting
     for (let variable of varList) {
         const props = normalizePathFirstSegment(variable.split("."));
@@ -107,7 +96,7 @@ function highlightVariables(text) {
                 const listPathRegex = listPath.map(p => `"${p}"\\s*:\\s*`).join('');
                 
                 // Regex to match property only within the list context
-                propPattern = new RegExp(`${listPathRegex}\\[.*?"${propName}"\\s*:`, 'gs');
+                propPattern = new RegExp(`${listPathRegex}\\[\\s*\\{[^}]*"${propName}"\\s*:`, 'gs');
             } else {
                 // For non-list variables, highlight globally
                 propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
