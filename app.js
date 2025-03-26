@@ -71,7 +71,7 @@ function displayData(prettify = false, highlight = false) {
     }
 }
 
-
+// Highlight variables in the JSON
 function highlightVariables(text) {
     const listVar = elements.listVar.value.trim();
     const varList = elements.varList.value.split(",").map(v => v.trim());
@@ -81,8 +81,12 @@ function highlightVariables(text) {
     tempDiv.innerText = text;
     let htmlString = tempDiv.innerHTML;
 
+    // Highlight the list if provided
+    if (listVar) {
+        const listPath = listVar.split(".");
+        const lastPart = listPath[listPath.length - 1];
 
-    // Create a pattern to find the list name in the JSON
+        // Create a pattern to find the list name in the JSON
         /*
         This regular expression is used to search for a specific pattern in text, particularly for finding a JSON property that starts a list. Let me break down each part:
 
@@ -103,36 +107,20 @@ function highlightVariables(text) {
         Altogether, this regex is searching for a pattern like `"property": [` with optional whitespace around the colon, where "property" is whatever value is stored in the `lastPart` variable. This would be useful for locating the beginning of a specific array in a JSON string.
         
         */
-
-    // Highlight the list if provided
-    if (listVar) {
-        const listPath = normalizePathFirstSegment(listVar.split("."));
-        const lastPart = listPath[listPath.length - 1];
-
-        // Modified regex to ensure we're highlighting within the list context
         const listPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');
+
         htmlString = htmlString.replace(listPattern, match =>
             `<span class="highlight">${match}</span>`);
     }
 
     // Highlight each property from the variables
     for (let variable of varList) {
-        const props = normalizePathFirstSegment(variable.split("."));
+        const props = variable.split(".");
 
-        // Skip the first part (data) and highlight all other parts
+        // Skip the first part (params/data) and highlight all other parts
         for (let i = 1; i < props.length; i++) {
             const propName = props[i];
-            
-            // More precise regex to avoid highlighting outside the intended context
-            let propPattern;
-            if (listVar) {
-                // If a list variable is specified, ensure highlighting only within list items
-                propPattern = new RegExp(`(?<=\\{[^\\}]*)"${propName}"\\s*:`, 'g');
-            } else {
-                // For non-list variables, use the previous broader pattern
-                propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
-            }
-            
+            const propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
             htmlString = htmlString.replace(propPattern, match =>
                 `<span class="highlight">${match}</span>`);
         }
@@ -140,7 +128,6 @@ function highlightVariables(text) {
 
     return htmlString;
 }
-
 
 // Extract values from the JSON based on user input
 function extractValues() {
