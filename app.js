@@ -133,55 +133,60 @@ function highlightVariables(text) {
     const loopVar = elements.loopVar.value.trim();
     const listVar = elements.listVar.value.trim();
     const varList = elements.varList.value.split(",").map(v => v.trim());
-
+    
     // Create a temporary div to safely work with HTML
     const tempDiv = document.createElement('div');
     tempDiv.innerText = text;
     let htmlString = tempDiv.innerHTML;
-
-    // Highlight the list if provided
-    if (listVar) {
+    
+    // Case 1: List, List Variable, and Variable to Extract mentioned
+    if (listVar && loopVar && varList.length > 0) {
         const listPath = normalizePathFirstSegment(listVar.split("."));
-        const lastPart = listPath[listPath.length - 1];
-
-        // Create a pattern to find the list name in the JSON
-        const listPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');
-
-        htmlString = htmlString.replace(listPattern, match =>
-            `<span class="highlight">${match}</span>`);
-    }
-
-    // Highlight each property from the variables
-    for (let variable of varList) {
-        const props = normalizePathFirstSegment(variable.split("."));
-
-        // Special handling for list traversal
-        if (listVar && loopVar) {
-            // If we're in a list traversal context
-            const listPath = normalizePathFirstSegment(listVar.split("."));
+        const listLastPart = listPath[listPath.length - 1];
+        
+        // Highlight the list name and its variables within the list
+        const listItemPattern = new RegExp(`"${listLastPart}"\\s*:\\s*\\[(([\\s\\S]*?)\\])?`, 'g');
+        htmlString = htmlString.replace(listItemPattern, (match, listContent) => {
+            let highlightedMatch = `<span class="highlight">"${listLastPart}": [</span>`;
             
-            // Check if the variable matches the loop context
-            if (props[0] === loopVar) {
-                // Highlight all instances of the property within the list context
-                const propName = props[props.length - 1];
+            // If list content exists, highlight specified variables within the list
+            if (listContent) {
+                varList.forEach(variable => {
+                    const props = variable.split(".");
+                    const propName = props[props.length - 1];
+                    
+                    const propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
+                    listContent = listContent.replace(propPattern, match => 
+                        `<span class="highlight">${match}</span>`);
+                });
                 
-                // More precise regex to ensure highlighting only within the list context
-                const listItemPattern = new RegExp(`(?<="${listPath[listPath.length - 1]}"\\s*:\\s*\\[.*?)"${propName}"\\s*:`, 'gs');
-                htmlString = htmlString.replace(listItemPattern, match =>
-                    `<span class="highlight">${match}</span>`);
+                highlightedMatch += listContent;
             }
-        } else {
-            // Default highlighting for non-list scenarios
-            // Only highlight parts after the first segment (params/data)
-            for (let i = 1; i < props.length; i++) {
-                const propName = props[i];
-                const propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
-                htmlString = htmlString.replace(propPattern, match =>
-                    `<span class="highlight">${match}</span>`);
-            }
-        }
-    }
+            
+            highlightedMatch += `<span class="highlight">]</span>`;
+            
+            return highlightedMatch;
+        });
+    } 
 
+    // Case 2: Only Variable to Extract mentioned (top-level object)
+    else if (varList.length > 0 && !listVar && !loopVar) {
+        varList.forEach(variable => {
+            const props = normalizePathFirstSegment(variable.split("."));
+            const propName = props[props.length - 1];
+            
+            // Highlight top-level object properties
+            // Regex to match only top-level properties in the data object
+            
+            // const propPattern = new RegExp(`"(${propName})"\\s*:`, 'g');
+            const propPattern = new RegExp(`"(${propName})"\\s*:\\s*(?!(?=[^\\[]*\\]))`, 'g');
+
+
+            htmlString = htmlString.replace(propPattern, match => 
+                `<span class="highlight">${match}</span>`);
+        });
+    }
+    
     return htmlString;
 }
 
