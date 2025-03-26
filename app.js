@@ -71,6 +71,7 @@ function displayData(prettify = false, highlight = false) {
     }
 }
 
+
 function highlightVariables(text) {
     const listVar = elements.listVar.value.trim();
     const varList = elements.varList.value.split(",").map(v => v.trim());
@@ -80,36 +81,35 @@ function highlightVariables(text) {
     tempDiv.innerText = text;
     let htmlString = tempDiv.innerHTML;
 
-    // Highlight the list if provided
+    // If a list variable is specified, we'll be more precise about highlighting
     if (listVar) {
         const listPath = normalizePathFirstSegment(listVar.split("."));
         const lastPart = listPath[listPath.length - 1];
 
-        // Modified regex to ensure we're highlighting within the list context
-        const listPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');
-        htmlString = htmlString.replace(listPattern, match =>
+        // Regex to find the start of the list
+        const listStartPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');
+        htmlString = htmlString.replace(listStartPattern, match =>
             `<span class="highlight">${match}</span>`);
     }
 
-    // Highlight each property from the variables
+    // Process each variable for highlighting
     for (let variable of varList) {
         const props = normalizePathFirstSegment(variable.split("."));
-
-        // Skip the first part (data) and highlight all other parts
+        
+        // Skip the first part (data) and process other parts
         for (let i = 1; i < props.length; i++) {
             const propName = props[i];
             
-            // More precise regex to only highlight within the specified list
             let propPattern;
             if (listVar) {
-                // Split the list variable to get the full path
+                // If a list variable is specified, create a precise regex for list context
                 const listPath = normalizePathFirstSegment(listVar.split("."));
                 const listPathRegex = listPath.map(p => `"${p}"\\s*:\\s*`).join('');
                 
-                // Construct a regex that ensures the property is within the specified list context
+                // Regex to match property only within the list context
                 propPattern = new RegExp(`${listPathRegex}\\[.*?"${propName}"\\s*:`, 'gs');
             } else {
-                // For non-list variables, use the previous broader pattern
+                // For non-list variables, highlight globally
                 propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
             }
             
