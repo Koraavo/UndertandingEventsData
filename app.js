@@ -71,8 +71,66 @@ function displayData(prettify = false, highlight = false) {
     }
 }
 
-// Highlight variables in the JSON
+// // Highlight variables in the JSON
+// function highlightVariables(text) {
+//     const listVar = elements.listVar.value.trim();
+//     const varList = elements.varList.value.split(",").map(v => v.trim());
+
+//     // Create a temporary div to safely work with HTML
+//     const tempDiv = document.createElement('div');
+//     tempDiv.innerText = text;
+//     let htmlString = tempDiv.innerHTML;
+
+//     // Highlight the list if provided
+//     if (listVar) {
+//         const listPath = listVar.split(".");
+//         const lastPart = listPath[listPath.length - 1];
+
+//         // Create a pattern to find the list name in the JSON
+//         /*
+//         This regular expression is used to search for a specific pattern in text, particularly for finding a JSON property that starts a list. Let me break down each part:
+
+//         `const listPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');`
+
+//         1. `"${lastPart}"` - This looks for the literal string value of the `lastPart` variable surrounded by double quotes. For example, if `lastPart` is "items", it would search for `"items"`.
+
+//         2. `\\s*` - This matches zero or more whitespace characters. The double backslash is needed because in JavaScript string literals, backslashes need to be escaped.
+
+//         3. `:` - This matches a literal colon character, which in JSON separates property names from values.
+
+//         4. `\\s*` - Again, this matches zero or more whitespace characters after the colon.
+
+//         5. `\\[` - This matches an opening square bracket `[`, which in JSON indicates the start of an array. The backslash is needed to escape the square bracket since it's a special character in regex.
+
+//         6. `'g'` - This flag makes the search global, meaning it will find all matches in the text rather than just the first one.
+
+//         Altogether, this regex is searching for a pattern like `"property": [` with optional whitespace around the colon, where "property" is whatever value is stored in the `lastPart` variable. This would be useful for locating the beginning of a specific array in a JSON string.
+        
+//         */
+//         const listPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');
+
+//         htmlString = htmlString.replace(listPattern, match =>
+//             `<span class="highlight">${match}</span>`);
+//     }
+
+//     // Highlight each property from the variables
+//     for (let variable of varList) {
+//         const props = variable.split(".");
+
+//         // Skip the first part (params/data) and highlight all other parts
+//         for (let i = 1; i < props.length; i++) {
+//             const propName = props[i];
+//             const propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
+//             htmlString = htmlString.replace(propPattern, match =>
+//                 `<span class="highlight">${match}</span>`);
+//         }
+//     }
+
+//     return htmlString;
+// }
+
 function highlightVariables(text) {
+    const loopVar = elements.loopVar.value.trim();
     const listVar = elements.listVar.value.trim();
     const varList = elements.varList.value.split(",").map(v => v.trim());
 
@@ -83,30 +141,10 @@ function highlightVariables(text) {
 
     // Highlight the list if provided
     if (listVar) {
-        const listPath = listVar.split(".");
+        const listPath = normalizePathFirstSegment(listVar.split("."));
         const lastPart = listPath[listPath.length - 1];
 
         // Create a pattern to find the list name in the JSON
-        /*
-        This regular expression is used to search for a specific pattern in text, particularly for finding a JSON property that starts a list. Let me break down each part:
-
-        `const listPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');`
-
-        1. `"${lastPart}"` - This looks for the literal string value of the `lastPart` variable surrounded by double quotes. For example, if `lastPart` is "items", it would search for `"items"`.
-
-        2. `\\s*` - This matches zero or more whitespace characters. The double backslash is needed because in JavaScript string literals, backslashes need to be escaped.
-
-        3. `:` - This matches a literal colon character, which in JSON separates property names from values.
-
-        4. `\\s*` - Again, this matches zero or more whitespace characters after the colon.
-
-        5. `\\[` - This matches an opening square bracket `[`, which in JSON indicates the start of an array. The backslash is needed to escape the square bracket since it's a special character in regex.
-
-        6. `'g'` - This flag makes the search global, meaning it will find all matches in the text rather than just the first one.
-
-        Altogether, this regex is searching for a pattern like `"property": [` with optional whitespace around the colon, where "property" is whatever value is stored in the `lastPart` variable. This would be useful for locating the beginning of a specific array in a JSON string.
-        
-        */
         const listPattern = new RegExp(`"${lastPart}"\\s*:\\s*\\[`, 'g');
 
         htmlString = htmlString.replace(listPattern, match =>
@@ -115,14 +153,32 @@ function highlightVariables(text) {
 
     // Highlight each property from the variables
     for (let variable of varList) {
-        const props = variable.split(".");
+        const props = normalizePathFirstSegment(variable.split("."));
 
-        // Skip the first part (params/data) and highlight all other parts
-        for (let i = 1; i < props.length; i++) {
-            const propName = props[i];
-            const propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
-            htmlString = htmlString.replace(propPattern, match =>
-                `<span class="highlight">${match}</span>`);
+        // Special handling for list traversal
+        if (listVar && loopVar) {
+            // If we're in a list traversal context
+            const listPath = normalizePathFirstSegment(listVar.split("."));
+            
+            // Check if the variable matches the loop context
+            if (props[0] === loopVar) {
+                // Highlight all instances of the property within the list context
+                const propName = props[props.length - 1];
+                
+                // More precise regex to ensure highlighting only within the list context
+                const listItemPattern = new RegExp(`(?<="${listPath[listPath.length - 1]}"\\s*:\\s*\\[.*?)"${propName}"\\s*:`, 'gs');
+                htmlString = htmlString.replace(listItemPattern, match =>
+                    `<span class="highlight">${match}</span>`);
+            }
+        } else {
+            // Default highlighting for non-list scenarios
+            // Only highlight parts after the first segment (params/data)
+            for (let i = 1; i < props.length; i++) {
+                const propName = props[i];
+                const propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
+                htmlString = htmlString.replace(propPattern, match =>
+                    `<span class="highlight">${match}</span>`);
+            }
         }
     }
 
