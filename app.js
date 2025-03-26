@@ -91,12 +91,13 @@ function highlightVariables(text) {
             
             let propPattern;
             if (listVar) {
-                // If a list variable is specified, create a precise regex for list context
+                // If a list variable is specified, create a very precise regex for list context
                 const listPath = normalizePathFirstSegment(listVar.split("."));
                 const listPathRegex = listPath.map(p => `"${p}"\\s*:\\s*`).join('');
                 
-                // Regex to match property only within the list context
-                propPattern = new RegExp(`${listPathRegex}\\[\\s*\\{[^}]*"${propName}"\\s*:`, 'gs');
+                // Regex to match property ONLY within the specified list
+                // This ensures we only match within the exact list array
+                propPattern = new RegExp(`(${listPathRegex}\\[(?:[^\\[\\]]*\\{[^\\}]*"${propName}"\\s*:)+)`, 'gs');
             } else {
                 // For non-list variables, highlight globally
                 propPattern = new RegExp(`"${propName}"\\s*:`, 'g');
